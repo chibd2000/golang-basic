@@ -6,14 +6,23 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"text/template"
 	"time"
 )
 
 //练习：实现Github的issue查询服务
 
 const (
-	issue_url = "https://api.github.com/search/issues?q=%s"
+	issue_url     = "https://api.github.com/search/issues?q=%s"
+	template_text = `{{.TotalCount}} issues:
+	{{range .Items}}----------------------------------------
+	Number: {{.Number}}
+	User:   {{.User.Login}}
+	Title:  {{.Title | printf "%.64s"}}
+	Age:    {{.CreatedAt | daysAgo}} days ago
+	{{end}}`
 )
 
 type IssuesSearchResult struct {
@@ -34,6 +43,10 @@ type Issue struct {
 type User struct {
 	Login   string
 	HTMLURL string `json:"html_url"`
+}
+
+func daysAgo(t time.Time) int {
+	return int(time.Since(t).Hours() / 24)
 }
 
 func get_issue_information(keywords []string, len int) (*IssuesSearchResult, error) {
@@ -60,19 +73,28 @@ func get_issue_information(keywords []string, len int) (*IssuesSearchResult, err
 	return &result, err
 }
 
-func main() {
-	m_before := time.Now().AddDate(0, -1, 0) // 一个月前
-	m_before_issue := []*Issue{}
-	result, err := get_issue_information([]string{"漏洞", "bug"}, 10)
+func generate_report(result *IssuesSearchResult) {
+	report, err := template.New("test_report").
+		Funcs(template.FuncMap{"daysAgo": daysAgo}).
+		Parse(template_text)
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err = report.Execute(os.Stdout, result); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func print_report(result *IssuesSearchResult) {
+	m_before := time.Now().AddDate(0, -1, 0) // 一个月前
+	m_before_issue := []*Issue{}
 	fmt.Printf("%d issues:\n", result.TotalCount)
 	for _, item := range result.Items {
+		fmt.Printf("#%-5d %9.9s %s %.55s \n",
+			item.Number, item.User.Login, item.CreatedAt, item.Title)
 		if m_before.Before(item.CreatedAt) {
 			m_before_issue = append(m_before_issue, item)
 		}
-		/// .....
 	}
 
 	fmt.Println("=====================m_before=====================")
@@ -80,4 +102,13 @@ func main() {
 		fmt.Printf("#%-5d %9.9s %s %.55s \n",
 			item.Number, item.User.Login, item.CreatedAt, item.Title)
 	}
+}
+
+func main() {
+	result, err := get_issue_information([]string{"漏洞", "bug"}, 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	generate_report(result)
 }

@@ -1,5 +1,11 @@
 # golang_basic
 
-## what_is_point
+自己的golang的学习笔记
 
-## alog
+1.
+2.
+3.
+4.
+5.
+6.
+
